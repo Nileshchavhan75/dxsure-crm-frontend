@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import AdminLayout from '../../components/Layout/AdminLayout';
 import { ticketAPI, userAPI } from '../../services/api';
 import toast from 'react-hot-toast';
-import { FiTrash2, FiSearch, FiPlus, FiEdit2, FiCheckCircle, FiClock, FiAlertCircle } from 'react-icons/fi';
+import { FiTrash2, FiSearch, FiPlus, FiEdit2, FiCheckCircle, FiClock, FiAlertCircle, FiEye } from 'react-icons/fi';
 
 const Tickets = () => {
   const [tickets, setTickets] = useState([]);
@@ -12,6 +12,8 @@ const Tickets = () => {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [showModal, setShowModal] = useState(false);
   const [editingTicket, setEditingTicket] = useState(null);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [selectedTicket, setSelectedTicket] = useState(null);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -58,11 +60,20 @@ const Tickets = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      // Prepare data for API - Convert assignedTo from string to object
+      const ticketData = {
+        title: formData.title,
+        description: formData.description,
+        priority: formData.priority,
+        status: 'OPEN',
+        assignedTo: formData.assignedTo ? { id: parseInt(formData.assignedTo) } : null
+      };
+      
       if (editingTicket) {
-        await ticketAPI.update(editingTicket.id, formData);
+        await ticketAPI.update(editingTicket.id, ticketData);
         toast.success('Ticket updated successfully');
       } else {
-        await ticketAPI.create(formData);
+        await ticketAPI.create(ticketData);
         toast.success('Ticket created successfully');
       }
       setShowModal(false);
@@ -77,7 +88,7 @@ const Tickets = () => {
       fetchTickets();
     } catch (error) {
       console.error('Error saving ticket:', error);
-      toast.error('Failed to save ticket');
+      toast.error(error.response?.data?.message || 'Failed to save ticket');
     }
   };
 
@@ -268,7 +279,7 @@ const Tickets = () => {
                       + Raise your first ticket
                     </button>
                   </td>
-                </tr>
+                 </tr>
               ) : (
                 filteredTickets.map(ticket => (
                   <tr key={ticket.id} className="hover:bg-gray-50 transition">
@@ -297,13 +308,25 @@ const Tickets = () => {
                       {ticket.assignedTo?.fullName || 'Unassigned'}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button
-                        onClick={() => handleDelete(ticket.id, ticket.title)}
-                        className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                        title="Delete"
-                      >
-                        <FiTrash2 size={16} />
-                      </button>
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => {
+                            setSelectedTicket(ticket);
+                            setShowViewModal(true);
+                          }}
+                          className="p-2 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition"
+                          title="View Details"
+                        >
+                          <FiEye size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(ticket.id, ticket.title)}
+                          className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                          title="Delete"
+                        >
+                          <FiTrash2 size={16} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -402,6 +425,84 @@ const Tickets = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* View Ticket Modal */}
+      {showViewModal && selectedTicket && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowViewModal(false)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center p-6 border-b border-gray-200">
+              <h2 className="text-xl font-semibold text-gray-800">Ticket Details</h2>
+              <button
+                onClick={() => setShowViewModal(false)}
+                className="text-gray-400 hover:text-gray-600 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase">Ticket ID</label>
+                <p className="text-gray-900 font-medium mt-1">#{selectedTicket.id}</p>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase">Title</label>
+                <p className="text-gray-900 mt-1">{selectedTicket.title}</p>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase">Description</label>
+                <p className="text-gray-700 mt-1">{selectedTicket.description || 'No description'}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Priority</label>
+                  <p className="mt-1">
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getPriorityColor(selectedTicket.priority)}`}>
+                      {selectedTicket.priority}
+                    </span>
+                  </p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Status</label>
+                  <p className="mt-1">
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(selectedTicket.status)}`}>
+                      {selectedTicket.status}
+                    </span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Created By</label>
+                  <p className="text-gray-900 mt-1">{selectedTicket.createdBy?.fullName || 'Admin'}</p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Assigned To</label>
+                  <p className="text-gray-900 mt-1">{selectedTicket.assignedTo?.fullName || 'Unassigned'}</p>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase">Created Date</label>
+                <p className="text-gray-900 mt-1">{new Date(selectedTicket.createdAt).toLocaleString()}</p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 p-6 border-t border-gray-200">
+              <button
+                onClick={() => setShowViewModal(false)}
+                className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

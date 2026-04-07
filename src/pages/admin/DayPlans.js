@@ -43,9 +43,22 @@ const DayPlans = () => {
 
   const handleStatusUpdate = async (id, newStatus) => {
     try {
-      await dayPlanAPI.update(id, { status: newStatus });
-      toast.success(`Day plan ${newStatus.toLowerCase()} successfully`);
-      fetchDayPlans();
+      // Use PATCH endpoint for status only
+      const response = await fetch(`http://localhost:8080/api/dayplans/${id}/status?status=${newStatus}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        toast.success(`Day plan ${newStatus.toLowerCase()} successfully`);
+        fetchDayPlans();
+      } else {
+        const error = await response.text();
+        toast.error(error || 'Failed to update status');
+      }
     } catch (error) {
       console.error('Error updating status:', error);
       toast.error('Failed to update status');
